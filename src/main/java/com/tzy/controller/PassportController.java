@@ -1,6 +1,9 @@
 package com.tzy.controller;
 
 import javax.annotation.Resource;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
 import org.springframework.stereotype.Controller;
@@ -13,6 +16,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import com.tzy.domain.User;
 import com.tzy.service.UserService;
 import com.tzy.util.CMSException;
+import com.tzy.util.CookieUtil;
+import com.tzy.utils.StringUtil;
 
 //用户登录注册模块
 @RequestMapping("passport")
@@ -29,12 +34,19 @@ public class PassportController {
 		return "passport/login";
 
 	}
+	
 
 	// 执行登录页面
 	@PostMapping("login")
-	public String login(Model model,User user,HttpSession session) {
+	public String login(Model model,User user,HttpSession session,HttpServletResponse response) {
 		try {
 			User u = userService.login(user);
+			//如果用户勾选了 【免登录10天】
+			if(StringUtil.hasText(user.getIsRemember())) {
+				CookieUtil.addCookie(response,"username", u.getUsername(), 60 * 60 * 24 * 10);//存十天
+				CookieUtil.addCookie(response,"password", u.getPassword(), 60 * 60 * 24 * 10);//存十天
+			}
+			
 			// 根据角色进入不同的页面
 			if("0".equals(u.getRole())){//普通用户,进入个人中心
 				//登录成功.存入session
@@ -94,10 +106,21 @@ public class PassportController {
 	
 //注销
 	@GetMapping("logout")
-	public String logout(HttpSession session) {
+	public String logout(HttpSession session,HttpServletRequest request, HttpServletResponse resp) {
+		 //让cookie删除
+		Cookie[] cookies = request.getCookies();
+		if (null != cookies) {
+			for (Cookie cookie : cookies) {
+				// System.out.println("cookie.getName():"+cookie.getName());
+				if (cookie.getName().equals("username")) {
+					cookie.setMaxAge(0);//cookie的存活时间。 0：删除cookie
+					cookie.setPath("/");
+					resp.addCookie(cookie);
+				}
+			}
+		}
 		session.invalidate();
 		return "redirect:/passport/login";
-		
 	}
 	
 
